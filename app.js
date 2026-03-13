@@ -17,6 +17,8 @@ const state = {
   rotation: [-12, -8, 0],
   targetRotation: [-12, -8, 0],
   animationFrameId: null,
+  dragRotationStart: null,
+  dragPointerStart: null,
 };
 
 const width = 1280;
@@ -62,6 +64,22 @@ const graticulePath = svg.append("path").attr("class", "graticule");
 const baseLayer = svg.append("g");
 const overlayLayer = svg.append("g");
 const labelLayer = svg.append("g").attr("pointer-events", "none");
+
+sphere.call(
+  d3
+    .drag()
+    .on("start", handleGlobeRotateStart)
+    .on("drag", handleGlobeRotateDrag)
+    .on("end", handleGlobeRotateEnd),
+);
+
+graticulePath.call(
+  d3
+    .drag()
+    .on("start", handleGlobeRotateStart)
+    .on("drag", handleGlobeRotateDrag)
+    .on("end", handleGlobeRotateEnd),
+);
 
 clearButton.addEventListener("click", () => {
   state.overlays = [];
@@ -299,6 +317,42 @@ function handleCountryDragEnd(event) {
   }
 
   renderScene();
+}
+
+function handleGlobeRotateStart(event) {
+  if (event.sourceEvent?.target?.closest?.(".country")) {
+    return;
+  }
+
+  if (state.animationFrameId !== null) {
+    window.cancelAnimationFrame(state.animationFrameId);
+    state.animationFrameId = null;
+  }
+
+  state.dragRotationStart = [...state.rotation];
+  state.dragPointerStart = [event.x, event.y];
+}
+
+function handleGlobeRotateDrag(event) {
+  if (!state.dragRotationStart || !state.dragPointerStart) {
+    return;
+  }
+
+  const deltaX = event.x - state.dragPointerStart[0];
+  const deltaY = event.y - state.dragPointerStart[1];
+  const rotationSensitivity = 0.22;
+  const nextLon = state.dragRotationStart[0] + deltaX * rotationSensitivity;
+  const nextLat = state.dragRotationStart[1] - deltaY * rotationSensitivity;
+
+  state.rotation = [wrapLongitude(nextLon), clampLatitude(nextLat), 0];
+  state.targetRotation = [...state.rotation];
+  state.hoverTargetId = null;
+  renderScene();
+}
+
+function handleGlobeRotateEnd() {
+  state.dragRotationStart = null;
+  state.dragPointerStart = null;
 }
 
 function updateSelectedCard(feature) {
