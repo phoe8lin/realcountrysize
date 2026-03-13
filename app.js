@@ -542,10 +542,7 @@ function getOverlayFeature(overlay) {
     return feature;
   }
 
-  const rotation = d3.geoRotation([
-    overlay.anchorGeo[0] - feature.geoCentroid[0],
-    overlay.anchorGeo[1] - feature.geoCentroid[1],
-  ]);
+  const rotation = createVectorRotation(feature.geoCentroid, overlay.anchorGeo);
 
   return {
     ...feature,
@@ -593,6 +590,100 @@ function rotateGeometry(geometry, rotation) {
   }
 }
 
+function createVectorRotation(sourceGeo, targetGeo) {
+  const sourceVector = lonLatToVector(sourceGeo);
+  const targetVector = lonLatToVector(targetGeo);
+  const dotProduct = clamp(dot(sourceVector, targetVector), -1, 1);
+
+  if (dotProduct > 0.999999) {
+    return (point) => point;
+  }
+
+  let rotationAxis = cross(sourceVector, targetVector);
+  let axisLength = magnitude(rotationAxis);
+
+  if (axisLength < 1e-8) {
+    rotationAxis = normalize(cross(sourceVector, [0, 0, 1]));
+
+    if (magnitude(rotationAxis) < 1e-8) {
+      rotationAxis = [1, 0, 0];
+    }
+
+    axisLength = magnitude(rotationAxis);
+  }
+
+  const normalizedAxis = rotationAxis.map((value) => value / axisLength);
+  const angle = Math.acos(dotProduct);
+  const sinAngle = Math.sin(angle);
+  const cosAngle = Math.cos(angle);
+
+  return (point) => {
+    const vector = lonLatToVector(point);
+    const axisCrossVector = cross(normalizedAxis, vector);
+    const axisDotVector = dot(normalizedAxis, vector);
+    const rotatedVector = [
+      vector[0] * cosAngle +
+        axisCrossVector[0] * sinAngle +
+        normalizedAxis[0] * axisDotVector * (1 - cosAngle),
+      vector[1] * cosAngle +
+        axisCrossVector[1] * sinAngle +
+        normalizedAxis[1] * axisDotVector * (1 - cosAngle),
+      vector[2] * cosAngle +
+        axisCrossVector[2] * sinAngle +
+        normalizedAxis[2] * axisDotVector * (1 - cosAngle),
+    ];
+
+    return vectorToLonLat(normalize(rotatedVector));
+  };
+}
+
+function lonLatToVector(point) {
+  const [lon, lat] = point;
+  const lambda = (lon * Math.PI) / 180;
+  const phi = (lat * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+
+  return [
+    cosPhi * Math.cos(lambda),
+    cosPhi * Math.sin(lambda),
+    Math.sin(phi),
+  ];
+}
+
+function vectorToLonLat(vector) {
+  const [x, y, z] = vector;
+  const lon = (Math.atan2(y, x) * 180) / Math.PI;
+  const lat = (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI;
+
+  return [lon, lat];
+}
+
+function dot(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function cross(a, b) {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+function magnitude(vector) {
+  return Math.hypot(vector[0], vector[1], vector[2]);
+}
+
+function normalize(vector) {
+  const length = magnitude(vector);
+
+  if (length < 1e-8) {
+    return [0, 0, 0];
+  }
+
+  return vector.map((value) => value / length);
+}
+
 function wrapLongitude(value) {
   let nextValue = value;
 
@@ -613,6 +704,10 @@ function shortestLongitudeDelta(from, to) {
 
 function clampLatitude(value) {
   return Math.max(-55, Math.min(55, value));
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function formatNumber(value) {
