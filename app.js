@@ -645,16 +645,15 @@ function createVectorRotation(sourceGeo, targetGeo) {
 
 function createOverlayRotation(sourceGeo, targetGeo) {
   const alignRotation = createVectorRotation(sourceGeo, targetGeo);
-  const sourceNorthReference = getNorthReferencePoint(sourceGeo);
-  const sourceAngle = getProjectedDirectionAngle(sourceGeo, sourceNorthReference);
-  const alignedNorthReference = alignRotation(sourceNorthReference);
+  const alignedNorthReference = alignRotation(getNorthReferencePoint(sourceGeo));
   const targetAngle = getProjectedDirectionAngle(targetGeo, alignedNorthReference);
+  const lockedNorthAngle = -Math.PI / 2;
 
-  if (sourceAngle === null || targetAngle === null) {
+  if (targetAngle === null) {
     return alignRotation;
   }
 
-  const rollAngle = normalizeAngle(sourceAngle - targetAngle);
+  const rollAngle = normalizeAngle(lockedNorthAngle - targetAngle);
   const rollRotation = createAxisAngleRotation(
     normalize(lonLatToVector(targetGeo)),
     rollAngle,
