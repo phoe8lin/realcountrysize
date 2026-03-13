@@ -547,7 +547,7 @@ function getOverlayFeature(overlay) {
     return feature;
   }
 
-  const rotation = createVectorRotation(feature.geoCentroid, overlay.anchorGeo);
+  const rotation = createOverlayRotation(feature.geoCentroid, overlay.anchorGeo);
 
   return {
     ...feature,
@@ -639,6 +639,34 @@ function createVectorRotation(sourceGeo, targetGeo) {
 
   const normalizedAxis = rotationAxis.map((value) => value / axisLength);
   const angle = Math.acos(dotProduct);
+
+  return createAxisAngleRotation(normalizedAxis, angle);
+}
+
+function createOverlayRotation(sourceGeo, targetGeo) {
+  const alignRotation = createVectorRotation(sourceGeo, targetGeo);
+  const sourceNorthReference = getNorthReferencePoint(sourceGeo);
+  const sourceAngle = getProjectedDirectionAngle(sourceGeo, sourceNorthReference);
+  const alignedNorthReference = alignRotation(sourceNorthReference);
+  const targetAngle = getProjectedDirectionAngle(targetGeo, alignedNorthReference);
+
+  if (sourceAngle === null || targetAngle === null) {
+    return alignRotation;
+  }
+
+  const rollAngle = normalizeAngle(sourceAngle - targetAngle);
+  const rollRotation = createAxisAngleRotation(
+    normalize(lonLatToVector(targetGeo)),
+    rollAngle,
+  );
+
+  return (point) => {
+    return rollRotation(alignRotation(point));
+  };
+}
+
+function createAxisAngleRotation(axis, angle) {
+  const normalizedAxis = normalize(axis);
   const sinAngle = Math.sin(angle);
   const cosAngle = Math.cos(angle);
 
@@ -660,6 +688,34 @@ function createVectorRotation(sourceGeo, targetGeo) {
 
     return vectorToLonLat(normalize(rotatedVector));
   };
+}
+
+function getNorthReferencePoint([lon, lat]) {
+  const delta = 0.75;
+
+  if (lat >= 89 - delta) {
+    return [lon, lat - delta];
+  }
+
+  return [lon, lat + delta];
+}
+
+function getProjectedDirectionAngle(centerGeo, directionGeo) {
+  const centerPoint = projection(centerGeo);
+  const directionPoint = projection(directionGeo);
+
+  if (!centerPoint || !directionPoint) {
+    return null;
+  }
+
+  const dx = directionPoint[0] - centerPoint[0];
+  const dy = directionPoint[1] - centerPoint[1];
+
+  if (Math.hypot(dx, dy) < 1e-6) {
+    return null;
+  }
+
+  return Math.atan2(dy, dx);
 }
 
 function lonLatToVector(point) {
@@ -733,6 +789,20 @@ function clampLatitude(value) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function normalizeAngle(angle) {
+  let nextAngle = angle;
+
+  while (nextAngle > Math.PI) {
+    nextAngle -= Math.PI * 2;
+  }
+
+  while (nextAngle < -Math.PI) {
+    nextAngle += Math.PI * 2;
+  }
+
+  return nextAngle;
 }
 
 function formatNumber(value) {
