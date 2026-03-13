@@ -512,7 +512,9 @@ function getFeature(id) {
 }
 
 function getOverlayPath(overlay) {
-  const feature = getFeature(overlay.featureId);
+  const feature = overlay.isDragging
+    ? getFeature(overlay.featureId)
+    : getOverlayFeature(overlay);
 
   if (!feature) {
     return null;
@@ -522,40 +524,73 @@ function getOverlayPath(overlay) {
     return feature.isVisible ? path(feature) : null;
   }
 
-  if (!overlay.anchorGeo) {
-    return feature.isVisible ? path(feature) : null;
-  }
-
-  const anchorPoint = projection(overlay.anchorGeo);
-
-  if (!anchorPoint) {
-    return null;
-  }
-
   return path(feature);
 }
 
 function getOverlayTransform(overlay) {
-  const feature = getFeature(overlay.featureId);
-
-  if (!feature) {
-    return null;
-  }
-
   if (overlay.isDragging || !overlay.anchorGeo) {
     return `translate(${overlay.dx}, ${overlay.dy})`;
   }
 
-  const anchorPoint = projection(overlay.anchorGeo);
+  return null;
+}
 
-  if (!anchorPoint || !feature.isVisible) {
-    return null;
+function getOverlayFeature(overlay) {
+  const feature = getFeature(overlay.featureId);
+
+  if (!feature || !overlay.anchorGeo) {
+    return feature;
   }
 
-  const [anchorX, anchorY] = anchorPoint;
-  const [centroidX, centroidY] = feature.screenCentroid;
+  const rotation = d3.geoRotation([
+    overlay.anchorGeo[0] - feature.geoCentroid[0],
+    overlay.anchorGeo[1] - feature.geoCentroid[1],
+  ]);
 
-  return `translate(${anchorX - centroidX}, ${anchorY - centroidY})`;
+  return {
+    ...feature,
+    geometry: rotateGeometry(feature.geometry, rotation),
+  };
+}
+
+function rotateGeometry(geometry, rotation) {
+  switch (geometry.type) {
+    case "Point":
+      return {
+        ...geometry,
+        coordinates: rotation(geometry.coordinates),
+      };
+    case "MultiPoint":
+    case "LineString":
+      return {
+        ...geometry,
+        coordinates: geometry.coordinates.map((point) => rotation(point)),
+      };
+    case "MultiLineString":
+    case "Polygon":
+      return {
+        ...geometry,
+        coordinates: geometry.coordinates.map((ring) =>
+          ring.map((point) => rotation(point)),
+        ),
+      };
+    case "MultiPolygon":
+      return {
+        ...geometry,
+        coordinates: geometry.coordinates.map((polygon) =>
+          polygon.map((ring) => ring.map((point) => rotation(point))),
+        ),
+      };
+    case "GeometryCollection":
+      return {
+        ...geometry,
+        geometries: geometry.geometries.map((child) =>
+          rotateGeometry(child, rotation),
+        ),
+      };
+    default:
+      return geometry;
+  }
 }
 
 function wrapLongitude(value) {
