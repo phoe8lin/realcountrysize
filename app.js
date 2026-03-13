@@ -278,11 +278,15 @@ function handleCountryDrag(event) {
     return;
   }
 
-  const rawDx = event.x - sourceFeature.screenCentroid[0];
-  const rawDy = event.y - sourceFeature.screenCentroid[1];
-  overlay.dx = rawDx;
-  overlay.dy = rawDy;
-  overlay.anchorGeo = null;
+  const anchorGeo = getPointerAnchorGeo(event.x, event.y);
+  overlay.anchorGeo = anchorGeo;
+
+  if (!anchorGeo) {
+    const rawDx = event.x - sourceFeature.screenCentroid[0];
+    const rawDy = event.y - sourceFeature.screenCentroid[1];
+    overlay.dx = rawDx;
+    overlay.dy = rawDy;
+  }
 
   const target = findHoveredCountry(event.x, event.y, overlay.featureId);
   state.hoverTargetId = target?.uid ?? null;
@@ -304,7 +308,7 @@ function handleCountryDragEnd(event) {
 
   overlay.isDragging = false;
   state.targetRotation = [...state.rotation];
-  overlay.anchorGeo = projection.invert([event.x, event.y]);
+  overlay.anchorGeo = getPointerAnchorGeo(event.x, event.y);
 
   const target = findHoveredCountry(event.x, event.y, overlay.featureId);
   state.hoverTargetId = null;
@@ -463,7 +467,8 @@ function stepRotationAnimation() {
 }
 
 function findHoveredCountry(x, y, excludedId) {
-  const invertedPoint = projection.invert([x, y]);
+  const [clampedX, clampedY] = clampPointToVisibleHemisphere(x, y);
+  const invertedPoint = projection.invert([clampedX, clampedY]);
 
   if (!invertedPoint) {
     return null;
@@ -512,15 +517,15 @@ function getFeature(id) {
 }
 
 function getOverlayPath(overlay) {
-  const feature = overlay.isDragging
-    ? getFeature(overlay.featureId)
-    : getOverlayFeature(overlay);
+  const feature = overlay.anchorGeo
+    ? getOverlayFeature(overlay)
+    : getFeature(overlay.featureId);
 
   if (!feature) {
     return null;
   }
 
-  if (overlay.isDragging) {
+  if (!overlay.anchorGeo) {
     return feature.isVisible ? path(feature) : null;
   }
 
@@ -528,7 +533,7 @@ function getOverlayPath(overlay) {
 }
 
 function getOverlayTransform(overlay) {
-  if (overlay.isDragging || !overlay.anchorGeo) {
+  if (!overlay.anchorGeo) {
     return `translate(${overlay.dx}, ${overlay.dy})`;
   }
 
@@ -588,6 +593,26 @@ function rotateGeometry(geometry, rotation) {
     default:
       return geometry;
   }
+}
+
+function getPointerAnchorGeo(pointerX, pointerY) {
+  const [clampedX, clampedY] = clampPointToVisibleHemisphere(pointerX, pointerY);
+  return projection.invert([clampedX, clampedY]);
+}
+
+function clampPointToVisibleHemisphere(pointerX, pointerY) {
+  const dx = pointerX - viewCenter[0];
+  const dy = pointerY - viewCenter[1];
+  const distance = Math.hypot(dx, dy);
+  const radius = projection.scale() - 2;
+
+  if (distance <= radius || distance === 0) {
+    return [pointerX, pointerY];
+  }
+
+  const ratio = radius / distance;
+
+  return [viewCenter[0] + dx * ratio, viewCenter[1] + dy * ratio];
 }
 
 function createVectorRotation(sourceGeo, targetGeo) {
