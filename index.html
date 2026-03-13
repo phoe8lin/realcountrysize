@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>国家或地区面积拖拽对比</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Area Compare Lab</p>
+          <h1>把任意国家或地区拖到另一个国家或地区上，看真实面积差异</h1>
+          <p class="lede">
+            地图使用球面面积计算，并以可旋转地球仪方式呈现。按住任意国家或地区并拖动，会生成一个可移动的副本；
+            把它覆盖到其他国家或地区上方，就能更直观地比较大小，同时在拖拽过程中自动把比较区域带回中央视野。
+          </p>
+        </div>
+        <div class="tips">
+          <p>操作提示</p>
+          <ul>
+            <li>单击国家或地区可查看面积与排名</li>
+            <li>拖动国家或地区可生成叠加副本进行比较</li>
+            <li>双击空白处可清除所有叠加副本</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-top">
+          <div class="legend">
+            <span><i class="swatch base"></i> 地图国家或地区</span>
+            <span><i class="swatch active"></i> 当前选中</span>
+            <span><i class="swatch overlay"></i> 拖拽副本</span>
+            <span><i class="swatch target"></i> 当前悬停目标地区</span>
+          </div>
+          <button id="clear-overlays" type="button">清除叠加副本</button>
+        </div>
+
+        <div class="map-shell">
+          <svg id="map" aria-label="世界国家或地区面积对比地图"></svg>
+          <div id="loading" class="loading">正在加载世界地图…</div>
+        </div>
+      </section>
+
+      <section class="info-grid">
+        <article class="card">
+          <p class="card-label">当前国家或地区</p>
+          <h2 id="selected-name">点击地图中的国家或地区</h2>
+          <p id="selected-meta" class="card-copy">这里会显示面积、全球排名与占地球陆地比例。</p>
+        </article>
+
+        <article class="card comparison">
+          <p class="card-label">拖拽比较</p>
+          <h2 id="comparison-title">把一个国家或地区拖到另一个国家或地区上方</h2>
+          <p id="comparison-copy" class="card-copy">
+            拖拽时会自动识别目标国家或地区，并显示两者面积倍数关系。
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
