@@ -237,11 +237,8 @@ function renderOverlays() {
     .attr("class", (overlay) =>
       overlay.isDragging ? "overlay-country dragging" : "overlay-country",
     )
-    .attr("d", (overlay) => {
-      const feature = getFeature(overlay.featureId);
-      return feature?.isVisible ? path(feature) : null;
-    })
-    .attr("transform", (overlay) => `translate(${overlay.dx}, ${overlay.dy})`)
+    .attr("d", (overlay) => getOverlayPath(overlay))
+    .attr("transform", (overlay) => getOverlayTransform(overlay))
     .style("pointer-events", "none");
 }
 
@@ -254,10 +251,10 @@ function handleCountryDragStart(event, feature) {
   const overlay = {
     id: `${feature.uid}-${Date.now()}`,
     featureId: feature.uid,
-    path: path(feature),
     dx: pointerX - centroidX,
     dy: pointerY - centroidY,
     isDragging: true,
+    anchorGeo: null,
   };
 
   state.overlays.push(overlay);
@@ -285,6 +282,7 @@ function handleCountryDrag(event) {
   const rawDy = event.y - sourceFeature.screenCentroid[1];
   overlay.dx = rawDx;
   overlay.dy = rawDy;
+  overlay.anchorGeo = null;
 
   const target = findHoveredCountry(event.x, event.y, overlay.featureId);
   state.hoverTargetId = target?.uid ?? null;
@@ -306,6 +304,7 @@ function handleCountryDragEnd(event) {
 
   overlay.isDragging = false;
   state.targetRotation = [...state.rotation];
+  overlay.anchorGeo = projection.invert([event.x, event.y]);
 
   const target = findHoveredCountry(event.x, event.y, overlay.featureId);
   state.hoverTargetId = null;
@@ -510,6 +509,53 @@ function normalizeFeatures(features) {
 
 function getFeature(id) {
   return state.features.find((feature) => feature.uid === id) ?? null;
+}
+
+function getOverlayPath(overlay) {
+  const feature = getFeature(overlay.featureId);
+
+  if (!feature) {
+    return null;
+  }
+
+  if (overlay.isDragging) {
+    return feature.isVisible ? path(feature) : null;
+  }
+
+  if (!overlay.anchorGeo) {
+    return feature.isVisible ? path(feature) : null;
+  }
+
+  const anchorPoint = projection(overlay.anchorGeo);
+
+  if (!anchorPoint) {
+    return null;
+  }
+
+  return path(feature);
+}
+
+function getOverlayTransform(overlay) {
+  const feature = getFeature(overlay.featureId);
+
+  if (!feature) {
+    return null;
+  }
+
+  if (overlay.isDragging || !overlay.anchorGeo) {
+    return `translate(${overlay.dx}, ${overlay.dy})`;
+  }
+
+  const anchorPoint = projection(overlay.anchorGeo);
+
+  if (!anchorPoint || !feature.isVisible) {
+    return null;
+  }
+
+  const [anchorX, anchorY] = anchorPoint;
+  const [centroidX, centroidY] = feature.screenCentroid;
+
+  return `translate(${anchorX - centroidX}, ${anchorY - centroidY})`;
 }
 
 function wrapLongitude(value) {
